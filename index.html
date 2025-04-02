@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CircleCI Data Dashboard</title>
+  <!-- Include Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PapaParse for CSV parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <!-- React and ReactDOM -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <!-- Babel for JSX -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.21.4/babel.min.js"></script>
+  <!-- Lodash for data manipulation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+</head>
+<body class="bg-gray-50">
+  <div class="container mx-auto p-4">
+    <h1 class="text-2xl font-bold mb-6">CircleCI Build Data Dashboard</h1>
+    <div id="app"></div>
+  </div>
+  
+  <!-- Your React component (written in JSX, will be transformed by Babel) -->
+  <script type="text/babel" src="script.js"></script>
+</body>
+</html>
