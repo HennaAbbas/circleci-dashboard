@@ -21,7 +21,7 @@ const CircleCIDataDashboard = () => {
       try {
         setLoading(true);
         // Change this to your CSV filename
-        const csvFile = '20241101_to_20241201_70e4e661856348a08598e73aec089cae.csv';
+        const csvFile = 'usage_report.csv';
         
         const response = await fetch(csvFile);
         const csvText = await response.text();
