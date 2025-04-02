@@ -14,32 +14,61 @@ const CircleCIDataDashboard = () => {
   const [visibleColumns, setVisibleColumns] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [stats, setStats] = useState({});
+  const [parsingDetails, setParsingDetails] = useState(null);
 
   // Load the CSV file
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        // Change this to your CSV filename
+        // Updated CSV filename
         const csvFile = 'usage_report.csv';
         
+        console.log("Attempting to fetch CSV file:", csvFile);
         const response = await fetch(csvFile);
-        const csvText = await response.text();
         
+        if (!response.ok) {
+          throw new Error(`Failed to fetch CSV: ${response.status} ${response.statusText}`);
+        }
+        
+        const csvText = await response.text();
+        console.log("CSV text sample (first 100 chars):", csvText.substring(0, 100));
+        
+        // Add debugging to PapaParse
         Papa.parse(csvText, {
           header: true,
           dynamicTyping: true,
           skipEmptyLines: true,
           complete: (results) => {
+            console.log("PapaParse complete. Rows:", results.data.length);
+            console.log("Headers:", results.meta.fields);
+            console.log("First row sample:", JSON.stringify(results.data[0]).substring(0, 100));
+            
+            // Store parsing details for debugging
+            setParsingDetails({
+              rowCount: results.data.length,
+              headers: results.meta.fields,
+              firstRowSample: results.data[0]
+            });
+            
+            // Check if data is correctly parsed
+            if (results.data.length === 0 || !results.meta.fields || results.meta.fields.length === 0) {
+              setError("CSV parsing produced no valid data or headers");
+              setLoading(false);
+              return;
+            }
+            
             // Clean up data - replace "\\N" with null for better display
             const cleanData = results.data.map(row => {
               const cleanRow = {};
-              Object.keys(row).forEach(key => {
-                cleanRow[key] = row[key] === "\\\\N" ? null : row[key];
+              // Make sure we're accessing properties correctly
+              results.meta.fields.forEach(field => {
+                cleanRow[field] = row[field] === "\\\\N" ? null : row[field];
               });
               return cleanRow;
             });
             
+            console.log("Cleaned data sample:", JSON.stringify(cleanData[0]).substring(0, 100));
             setData(cleanData);
             
             // Set initial visible columns (limit to important ones for better UI)
@@ -53,7 +82,8 @@ const CircleCIDataDashboard = () => {
               'OPERATING_SYSTEM', 
               'EXECUTOR',
               'TOTAL_CREDITS'
-            ];
+            ].filter(col => results.meta.fields.includes(col));
+            
             setVisibleColumns(initialVisibleColumns);
             
             // Generate filter options for each column
@@ -71,11 +101,13 @@ const CircleCIDataDashboard = () => {
             setLoading(false);
           },
           error: (error) => {
+            console.error("PapaParse error:", error);
             setError(`Error parsing CSV: ${error.message}`);
             setLoading(false);
           }
         });
       } catch (error) {
+        console.error("Fetch error:", error);
         setError(`Error loading file: ${error.message}`);
         setLoading(false);
       }
@@ -205,6 +237,7 @@ const CircleCIDataDashboard = () => {
   // Format value for display
   const formatValue = (value, column) => {
     if (value === null) return "—";
+    if (value === undefined) return "?";
     
     // Format dates
     if (column.includes('DATE') || column.includes('_AT')) {
@@ -221,6 +254,61 @@ const CircleCIDataDashboard = () => {
     return String(value);
   };
 
+  // Add file uploader UI
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    setLoading(true);
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const csvText = e.target.result;
+      
+      Papa.parse(csvText, {
+        header: true,
+        dynamicTyping: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          console.log("File upload parsing complete. Rows:", results.data.length);
+          console.log("Headers:", results.meta.fields);
+          
+          const cleanData = results.data.map(row => {
+            const cleanRow = {};
+            results.meta.fields.forEach(field => {
+              cleanRow[field] = row[field] === "\\\\N" ? null : row[field];
+            });
+            return cleanRow;
+          });
+          
+          setData(cleanData);
+          setVisibleColumns(results.meta.fields.slice(0, 9));
+          
+          const options = {};
+          results.meta.fields.forEach(field => {
+            const uniqueValues = [...new Set(cleanData.map(item => item[field]))].filter(x => x !== null);
+            options[field] = uniqueValues.sort();
+          });
+          setColumnOptions(options);
+          
+          calculateStats(cleanData);
+          setLoading(false);
+        },
+        error: (error) => {
+          setError(`Error parsing CSV: ${error.message}`);
+          setLoading(false);
+        }
+      });
+    };
+    
+    reader.onerror = () => {
+      setError("Error reading file");
+      setLoading(false);
+    };
+    
+    reader.readAsText(file);
+  };
+
   // Show loading state
   if (loading) {
     return (
@@ -233,18 +321,52 @@ const CircleCIDataDashboard = () => {
     );
   }
 
-  // Show error state
+  // Show error state with debugging info
   if (error) {
     return (
-      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-        <strong className="font-bold">Error!</strong>
-        <span className="block sm:inline"> {error}</span>
+      <div className="space-y-4">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <strong className="font-bold">Error!</strong>
+          <span className="block sm:inline"> {error}</span>
+        </div>
+        
+        <div className="bg-yellow-50 border border-yellow-400 p-4 rounded">
+          <h3 className="font-bold text-lg mb-2">Try uploading your CSV file manually:</h3>
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleFileUpload}
+            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+        </div>
+        
+        {parsingDetails && (
+          <div className="bg-gray-50 p-4 rounded border text-sm">
+            <h3 className="font-bold mb-2">Debugging Information:</h3>
+            <p>Rows found: {parsingDetails.rowCount}</p>
+            <p>Headers found: {parsingDetails.headers ? parsingDetails.headers.length : 0}</p>
+            <p>Headers: {parsingDetails.headers ? parsingDetails.headers.join(', ').substring(0, 100) + '...' : 'None'}</p>
+            <p>First row: {parsingDetails.firstRowSample ? JSON.stringify(parsingDetails.firstRowSample).substring(0, 100) + '...' : 'None'}</p>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <div className="flex flex-col space-y-6">
+      {/* File upload option */}
+      <div className="bg-blue-50 p-4 rounded border border-blue-200">
+        <h3 className="font-medium mb-2">Upload your CSV file:</h3>
+        <input
+          type="file"
+          accept=".csv"
+          onChange={handleFileUpload}
+          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+        />
+        <p className="text-xs text-gray-500 mt-1">Or use the preloaded data (if available)</p>
+      </div>
+      
       {/* Stats Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded shadow">
